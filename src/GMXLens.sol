@@ -1,8 +1,7 @@
 pragma solidity 0.8.21;
 
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 import {IReader} from "./interfaces/IReader.sol";
 import {IDataStore} from "./interfaces/IDataStore.sol";
@@ -11,8 +10,9 @@ import {IOracle} from "./interfaces/IOracle.sol";
 
 import {Market,Keys,Price,Calc,Precision,MarketPoolValueInfo} from "./Lib.sol";
 
-contract GMXLens is UUPSUpgradeable, OwnableUpgradeable {
+contract GMXLens {
     // using Math for int256;
+    using SafeCast for int256;
 
     struct MarketDataState {
         address marketToken;
@@ -46,39 +46,39 @@ contract GMXLens is UUPSUpgradeable, OwnableUpgradeable {
     address private immutable oracle;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    /// @param reader_ address of reader contract
-    /// @param dataStore_ address of dataStore contract
-    /// @param oracle_ address of oracle contract
-    constructor(IReader _reader, address _dataStore, address _oracle) {
-        reader = _reader;
+    /// @param _reader address of reader contract
+    /// @param _dataStore address of dataStore contract
+    /// @param _oracle address of oracle contract
+    constructor(address _reader, address _dataStore, address _oracle) {
+        reader = IReader(_reader);
         dataStore = _dataStore;
         oracle = _oracle;
-        _disableInitializers();
     }
 
-     function initialize() external initializer {
-        __Ownable_init(msg.sender);
-        __UUPSUpgradeable_init();
-    }
+    //  function initialize(IReader _reader, address _dataStore, address _oracle) external initializer {
+    //     reader = _reader;
+    //     dataStore = _dataStore;
+    //     oracle = _oracle;
+    //     __Ownable_init(msg.sender);
+    //     __UUPSUpgradeable_init();
+    // }
 
     function getMarketData(
         address marketID
-    ) external view returns (MarketDataState memory marketDataState) {
+    ) external returns (MarketDataState memory marketDataState) {
         Market.Props memory marketProps = reader.getMarket(dataStore, marketID);
-
-        marketDataState.marketToken = marketProps.marketToken;
-        marketDataState.indexToken = marketProps.indexToken;
-        marketDataState.longToken = marketProps.longToken;
-        marketDataState.shortToken = marketProps.shortToken;
 
         Price.MarketPrices memory marketPrices = Price.MarketPrices(
             tokenPrice(marketProps.indexToken),
             tokenPrice(marketProps.longToken),
             tokenPrice(marketProps.shortToken)
         );
+
+
+        return marketPrices;
     }
 
-    function tokenPrice(address _token) external returns(Price.Props memory){
+    function tokenPrice(address _token) internal returns(Price.Props memory){
         IPriceFeed priceFeed = IPriceFeed(IDataStore(dataStore).getAddress(Keys.priceFeedKey(_token)));
 
         if (address(priceFeed) == address(0)) {
@@ -104,12 +104,14 @@ contract GMXLens is UUPSUpgradeable, OwnableUpgradeable {
         return Price.Props(price, price);
     }
 
-   /**
-     * @dev performs required checks required to upgrade contract
-     * @param newImplementation address to update implementation logic to
-     */
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyOwner {}
-    
+        function getPriceFeedMultiplier(
+        address token
+    ) public view returns (uint256) {
+        uint256 multiplier = IDataStore(dataStore).getUint(
+            Keys.priceFeedMultiplierKey(token)
+        );
+
+        return multiplier;
+    }
+
 }

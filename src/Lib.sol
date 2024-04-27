@@ -287,9 +287,13 @@ library Calc {
 
 library Keys {
     bytes32 public constant PRICE_FEED = keccak256(abi.encode("PRICE_FEED"));
-
+    bytes32 public constant PRICE_FEED_MULTIPLIER = keccak256(abi.encode("PRICE_FEED_MULTIPLIER"));
 
     function priceFeedKey(address _token) internal pure returns (bytes32) {
         return keccak256(abi.encode(PRICE_FEED, _token));
+    }
+
+    function priceFeedMultiplierKey(address token) internal pure returns (bytes32) {
+        return keccak256(abi.encode(PRICE_FEED_MULTIPLIER, token));
     }
 }

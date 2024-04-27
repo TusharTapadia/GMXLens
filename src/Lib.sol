@@ -288,6 +288,7 @@ library Calc {
 library Keys {
     bytes32 public constant PRICE_FEED = keccak256(abi.encode("PRICE_FEED"));
     bytes32 public constant PRICE_FEED_MULTIPLIER = keccak256(abi.encode("PRICE_FEED_MULTIPLIER"));
+    bytes32 public constant MAX_PNL_FACTOR_FOR_TRADERS = keccak256(abi.encode("MAX_PNL_FACTOR_FOR_TRADERS"));
 
     function priceFeedKey(address _token) internal pure returns (bytes32) {
         return keccak256(abi.encode(PRICE_FEED, _token));

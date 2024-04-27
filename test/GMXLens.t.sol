@@ -24,7 +24,7 @@ function setUp() public {
 
 function testGetData() public {
      address marketID = address(0x47c031236e19d024b42f8AE6780E44A573170703);
-        Price.MarketPrices memory marketData = aggregator.getMarketData(marketID);
-        console.log(marketData.indexTokenPrice.max);
+        GMXLens.MarketDataState memory data = aggregator.getMarketData(marketID);
+        console.log(data.shortToken);
 }
 }

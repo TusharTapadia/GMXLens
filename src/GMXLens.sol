@@ -19,26 +19,14 @@ contract GMXLens {
         address indexToken;
         address longToken;
         address shortToken;
-        uint256 poolValue; // 30 decimals
+        int256 poolValue; // 30 decimals
         uint256 longTokenAmount; // token decimals
         uint256 longTokenUsd; // 30 decimals
         uint256 shortTokenAmount; // token decimals
         uint256 shortTokenUsd; // 30 decimals
-        int256 openInterestLong; // 30 decimals
-        int256 openInterestShort; // 30 decimals
         int256 pnlLong; // 30 decimals
         int256 pnlShort; // 30 decimals
-        int256 netPnl; // 30 decimals
-        uint256 borrowingFactorPerSecondForLongs; // 30 decimals
-        uint256 borrowingFactorPerSecondForShorts; // 30 decimals
-        bool longsPayShorts;
-        uint256 fundingFactorPerSecond; // 30 decimals
-        int256 fundingFactorPerSecondLongs; // 30 decimals
-        int256 fundingFactorPerSecondShorts; // 30 decimals
-        uint256 reservedUsdLong; // 30 decimals
-        uint256 reservedUsdShort; // 30 decimals
-        uint256 maxOpenInterestUsdLong; // 30 decimals
-        uint256 maxOpenInterestUsdShort; // 30 decimals
+        int256 netPnl;// 30 decimals
     }
 
     IReader private immutable reader;
@@ -63,32 +51,43 @@ contract GMXLens {
     //     __UUPSUpgradeable_init();
     // }
 
-    function getMarketData(
-        address marketID
-    ) external returns (MarketDataState memory marketDataState) {
+    function getMarketData(address marketID) external returns (MarketDataState memory marketDataState) {
+    // getting market addresses
         Market.Props memory marketProps = reader.getMarket(dataStore, marketID);
 
-        Price.MarketPrices memory marketPrices = Price.MarketPrices(
-            tokenPrice(marketProps.indexToken),
-            tokenPrice(marketProps.longToken),
-            tokenPrice(marketProps.shortToken)
-        );
+    // getting prices
+        Price.MarketPrices memory marketPrices = Price.MarketPrices(tokenPrice(marketProps.indexToken),tokenPrice(marketProps.longToken),tokenPrice(marketProps.shortToken));
+
+    // getting detailed info of marketTokenPrice and info
+       (int marketTokenPrice, MarketPoolValueInfo.Props memory marketPoolValueInfo )= reader.getMarketTokenPrice(dataStore, marketProps, marketPrices.indexTokenPrice, marketPrices.longTokenPrice, marketPrices.shortTokenPrice, Keys.MAX_PNL_FACTOR_FOR_TRADERS, true);
 
 
-        return marketPrices;
+    // getting pnl of long and short
+
+        int256 pnlShort = reader.getPnl(dataStore, marketProps, marketPrices.indexTokenPrice, false, true);
+        int256 pnlLong = reader.getPnl(dataStore, marketProps, marketPrices.indexTokenPrice, true, true);
+        int256 netPnl = reader.getNetPnl(dataStore,marketProps,marketPrices.indexTokenPrice,true);
+
+    //aggregating data
+        marketDataState.marketToken = marketProps.marketToken;
+        marketDataState.indexToken = marketProps.indexToken;
+        marketDataState.longToken = marketProps.longToken;
+        marketDataState.shortToken = marketProps.shortToken;
+        marketDataState.poolValue = marketPoolValueInfo.poolValue;
+        marketDataState.longTokenAmount = marketPoolValueInfo.longTokenAmount;
+        marketDataState.longTokenUsd = marketPoolValueInfo.longTokenUsd;
+        marketDataState.shortTokenAmount = marketPoolValueInfo.shortTokenAmount;
+        marketDataState.shortTokenUsd = marketPoolValueInfo.shortTokenUsd;
+        marketDataState.pnlShort = pnlShort;
+        marketDataState.pnlLong = pnlLong;
+        marketDataState.netPnl = netPnl;
     }
 
     function tokenPrice(address _token) internal returns(Price.Props memory){
         IPriceFeed priceFeed = IPriceFeed(IDataStore(dataStore).getAddress(Keys.priceFeedKey(_token)));
 
         if (address(priceFeed) == address(0)) {
-            Price.Props memory primaryPrice = IOracle(oracle).primaryPrices(
-                _token
-            );
-            require(
-                primaryPrice.min != 0 && primaryPrice.max != 0,
-                "Not able to fetch latest price"
-            );
+            Price.Props memory primaryPrice = IOracle(oracle).primaryPrices(_token);
             return primaryPrice;
         }
 
@@ -96,20 +95,12 @@ contract GMXLens {
 
         (, int256 _tokenPrice, , , ) = priceFeed.latestRoundData();
 
-        uint256 price = Precision.mulDiv(
-            SafeCast.toUint256(_tokenPrice),
-            multiplier,
-            Precision.FLOAT_PRECISION
-        );
+        uint256 price = Precision.mulDiv(SafeCast.toUint256(_tokenPrice),multiplier,Precision.FLOAT_PRECISION);
         return Price.Props(price, price);
     }
 
-        function getPriceFeedMultiplier(
-        address token
-    ) public view returns (uint256) {
-        uint256 multiplier = IDataStore(dataStore).getUint(
-            Keys.priceFeedMultiplierKey(token)
-        );
+    function getPriceFeedMultiplier(address token) public view returns (uint256) {
+        uint256 multiplier = IDataStore(dataStore).getUint(Keys.priceFeedMultiplierKey(token));
 
         return multiplier;
     }

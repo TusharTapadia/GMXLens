@@ -1,5 +1,7 @@
 [profile.default]
+solc_version = "0.8.21"
 src = "src"
+build_info = true
 out = "out"
 libs = ["lib"]
 

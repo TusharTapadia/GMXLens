@@ -26,6 +26,8 @@ contract GMXLens is UUPSUpgradeable,OwnableUpgradeable{
         uint256 longTokenUsd; // 30 decimals
         uint256 shortTokenAmount; // token decimals
         uint256 shortTokenUsd; // 30 decimals
+        int256 openInterestLong; // 30 decimals
+        int256 openInterestShort; // 30 decimals
         int256 pnlLong; // 30 decimals
         int256 pnlShort; // 30 decimals
         int256 netPnl;// 30 decimals
@@ -33,37 +35,30 @@ contract GMXLens is UUPSUpgradeable,OwnableUpgradeable{
         uint256 borrowingFactorPerSecondForShorts; // 30 decimals
         bool longsPayShorts;
         uint256 fundingFactorPerSecond; // 30 decimals
-        int256 openInterestLong; // 30 decimals
-        int256 openInterestShort; // 30 decimals
+        int256 fundingFactorPerSecondLongs; // 30 decimals
+        int256 fundingFactorPerSecondShorts; // 30 decimals
         uint256 reservedUsdLong; // 30 decimals
         uint256 reservedUsdShort; // 30 decimals
         uint256 maxOpenInterestUsdLong; // 30 decimals
         uint256 maxOpenInterestUsdShort; // 30 decimals
-        int256 fundingFactorPerSecondLongs; // 30 decimals
-        int256 fundingFactorPerSecondShorts; // 30 decimals
     }
 
-    IReader private immutable reader;
-    address private immutable dataStore;
-    address private immutable oracle;
+    IReader private reader;
+    address private dataStore;
+    address private oracle;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     /// @param _reader address of reader contract
     /// @param _dataStore address of dataStore contract
     /// @param _oracle address of oracle contract
-    constructor(address _reader, address _dataStore, address _oracle) {
+
+     function initialize(address _reader, address _dataStore, address _oracle) external initializer {
         reader = IReader(_reader);
         dataStore = _dataStore;
         oracle = _oracle;
+        __Ownable_init(msg.sender);
+        __UUPSUpgradeable_init();
     }
-
-    //  function initialize(IReader _reader, address _dataStore, address _oracle) external initializer {
-    //     reader = _reader;
-    //     dataStore = _dataStore;
-    //     oracle = _oracle;
-    //     __Ownable_init(msg.sender);
-    //     __UUPSUpgradeable_init();
-    // }
 
     function getMarketData(address marketID) external returns (MarketDataState memory marketDataState) {
     // getting market addresses
@@ -351,5 +346,13 @@ contract GMXLens is UUPSUpgradeable,OwnableUpgradeable{
         Increase,
         Decrease
     }
+
+    /**
+     * @dev performs required checks required to upgrade contract
+     * @param newImplementation address to update implementation logic to
+     */
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyOwner {}
 
 }

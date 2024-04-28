@@ -289,12 +289,65 @@ library Keys {
     bytes32 public constant PRICE_FEED = keccak256(abi.encode("PRICE_FEED"));
     bytes32 public constant PRICE_FEED_MULTIPLIER = keccak256(abi.encode("PRICE_FEED_MULTIPLIER"));
     bytes32 public constant MAX_PNL_FACTOR_FOR_TRADERS = keccak256(abi.encode("MAX_PNL_FACTOR_FOR_TRADERS"));
+    bytes32 public constant OPEN_INTEREST = keccak256(abi.encode("OPEN_INTEREST"));
+    bytes32 public constant OPEN_INTEREST_IN_TOKENS = keccak256(abi.encode("OPEN_INTEREST_IN_TOKENS"));
+    bytes32 public constant MAX_OPEN_INTEREST = keccak256(abi.encode("MAX_OPEN_INTEREST"));
+    bytes32 public constant FUNDING_EXPONENT_FACTOR = keccak256(abi.encode("FUNDING_EXPONENT_FACTOR"));
+    bytes32 public constant FUNDING_INCREASE_FACTOR_PER_SECOND = keccak256(abi.encode("FUNDING_INCREASE_FACTOR_PER_SECOND"));
+    bytes32 public constant THRESHOLD_FOR_STABLE_FUNDING = keccak256(abi.encode("THRESHOLD_FOR_STABLE_FUNDING"));
 
+    // @dev key for price feed address
+    // @param token the token to get the key for
+    // @return key for price feed address
     function priceFeedKey(address _token) internal pure returns (bytes32) {
         return keccak256(abi.encode(PRICE_FEED, _token));
     }
 
+    // @dev key for price feed multiplier
+    // @param token the token to get the key for
+    // @return key for price feed multiplier
     function priceFeedMultiplierKey(address token) internal pure returns (bytes32) {
         return keccak256(abi.encode(PRICE_FEED_MULTIPLIER, token));
+    }
+
+    // @dev key for open interest
+    // @param market the market to check
+    // @param collateralToken the collateralToken to check
+    // @param isLong whether to check the long or short open interest
+    // @return key for open interest
+    function openInterestKey(address market, address collateralToken, bool isLong) internal pure returns (bytes32) {
+        return keccak256(abi.encode(OPEN_INTEREST,market,collateralToken,isLong));
+    }
+
+    // @dev key for open interest in tokens
+    // @param market the market to check
+    // @param collateralToken the collateralToken to check
+    // @param isLong whether to check the long or short open interest
+    // @return key for open interest in tokens
+    function openInterestInTokensKey(address market, address collateralToken, bool isLong) internal pure returns (bytes32) {
+        return keccak256(abi.encode(OPEN_INTEREST_IN_TOKENS,market,collateralToken,isLong));
+    }
+
+    // @dev the key for the max open interest
+    // @param market the market for the pool
+    // @param isLong whether the key is for the long or short side
+    function maxOpenInterestKey(address market, bool isLong) internal pure returns (bytes32) {
+        return keccak256(abi.encode(MAX_OPEN_INTEREST,market,isLong));
+    }
+
+    function fundingExponentFactorKey(address market) internal pure returns (bytes32) {
+        return keccak256(abi.encode(FUNDING_EXPONENT_FACTOR, market));
+    }
+
+    // @dev the key for funding increase factor
+    // @param market the market for the pool
+    function fundingIncreaseFactorPerSecondKey(address market) internal pure returns (bytes32) {
+        return keccak256(abi.encode(FUNDING_INCREASE_FACTOR_PER_SECOND, market));
+    }
+    
+    // @dev the key for threshold for stable funding
+    // @param market the market for the pool
+    function thresholdForStableFundingKey(address market) internal pure returns (bytes32) {
+        return keccak256(abi.encode(THRESHOLD_FOR_STABLE_FUNDING, market));
     }
 }

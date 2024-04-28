@@ -295,6 +295,11 @@ library Keys {
     bytes32 public constant FUNDING_EXPONENT_FACTOR = keccak256(abi.encode("FUNDING_EXPONENT_FACTOR"));
     bytes32 public constant FUNDING_INCREASE_FACTOR_PER_SECOND = keccak256(abi.encode("FUNDING_INCREASE_FACTOR_PER_SECOND"));
     bytes32 public constant THRESHOLD_FOR_STABLE_FUNDING = keccak256(abi.encode("THRESHOLD_FOR_STABLE_FUNDING"));
+    bytes32 public constant THRESHOLD_FOR_DECREASE_FUNDING = keccak256(abi.encode("THRESHOLD_FOR_DECREASE_FUNDING"));
+    bytes32 public constant SAVED_FUNDING_FACTOR_PER_SECOND = keccak256(abi.encode("SAVED_FUNDING_FACTOR_PER_SECOND"));
+    bytes32 public constant FUNDING_UPDATED_AT = keccak256(abi.encode("FUNDING_UPDATED_AT"));
+    bytes32 public constant FUNDING_DECREASE_FACTOR_PER_SECOND = keccak256(abi.encode("FUNDING_DECREASE_FACTOR_PER_SECOND"));
+    bytes32 public constant MAX_FUNDING_FACTOR_PER_SECOND = keccak256(abi.encode("MAX_FUNDING_FACTOR_PER_SECOND"));
 
     // @dev key for price feed address
     // @param token the token to get the key for
@@ -350,4 +355,36 @@ library Keys {
     function thresholdForStableFundingKey(address market) internal pure returns (bytes32) {
         return keccak256(abi.encode(THRESHOLD_FOR_STABLE_FUNDING, market));
     }
+
+    // @dev the key for threshold for decreasing funding
+    // @param market the market for the pool
+    function thresholdForDecreaseFundingKey(address market) internal pure returns (bytes32) {
+        return keccak256(abi.encode(THRESHOLD_FOR_DECREASE_FUNDING, market));
+    }
+
+    // @dev the key for saved funding factor
+    // @param market the market for the pool
+    function savedFundingFactorPerSecondKey(address market) internal pure returns (bytes32) {
+        return keccak256(abi.encode(SAVED_FUNDING_FACTOR_PER_SECOND, market));
+    }
+
+    // @dev key for when funding was last updated
+    // @param market the market to check
+    // @return key for when funding was last updated
+    function fundingUpdatedAtKey(address market) internal pure returns (bytes32) {
+        return keccak256(abi.encode(FUNDING_UPDATED_AT, market));
+    }
+
+    // @dev the key for funding decrease factor
+    // @param market the market for the pool
+    function fundingDecreaseFactorPerSecondKey(address market) internal pure returns (bytes32) {
+        return keccak256(abi.encode(FUNDING_DECREASE_FACTOR_PER_SECOND, market));
+    }
+
+    // @dev the key for max funding factor
+    // @param market the market for the pool
+    function maxFundingFactorPerSecondKey(address market) internal pure returns (bytes32) {
+        return keccak256(abi.encode(MAX_FUNDING_FACTOR_PER_SECOND, market));
+    }
+
 }

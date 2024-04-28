@@ -25,6 +25,29 @@ function setUp() public {
 function testGetData() public {
      address marketID = address(0x47c031236e19d024b42f8AE6780E44A573170703);
         GMXLens.MarketDataState memory data = aggregator.getMarketData(marketID);
+        console.log(data.marketToken);
+        console.log(data.indexToken);
+        console.log(data.longToken);
         console.log(data.shortToken);
+        console.logInt(data.poolValue);
+        console.log(data.longTokenAmount);
+        console.log(data.longTokenUsd);
+        console.log(data.shortTokenAmount);
+        console.log(data.shortTokenUsd);
+        console.logInt(data.pnlLong);
+        console.logInt(data.pnlShort);
+        console.logInt(data.netPnl);
+        console.log(data.borrowingFactorPerSecondForLongs);
+        console.log(data.borrowingFactorPerSecondForShorts);
+        console.logBool(data.longsPayShorts);
+        console.log(data.fundingFactorPerSecond);
+        console.logInt(data.openInterestLong);
+        console.logInt(data.openInterestShort);
+        console.log(data.reservedUsdLong);
+        console.log(data.reservedUsdShort);
+        console.log(data.maxOpenInterestUsdLong);
+        console.log(data.maxOpenInterestUsdShort);
+        console.logInt(data.fundingFactorPerSecondLongs);
+        console.logInt(data.fundingFactorPerSecondShorts);
 }
 }

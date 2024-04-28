@@ -1,5 +1,7 @@
 pragma solidity 0.8.21;
 
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
@@ -10,7 +12,7 @@ import {IOracle} from "./interfaces/IOracle.sol";
 
 import {Market,Keys,Price,Calc,Precision,MarketPoolValueInfo} from "./Lib.sol";
 
-contract GMXLens {
+contract GMXLens is UUPSUpgradeable,OwnableUpgradeable{
     // using Math for int256;
     using SafeCast for int256;
 
@@ -37,6 +39,8 @@ contract GMXLens {
         uint256 reservedUsdShort; // 30 decimals
         uint256 maxOpenInterestUsdLong; // 30 decimals
         uint256 maxOpenInterestUsdShort; // 30 decimals
+        int256 fundingFactorPerSecondLongs; // 30 decimals
+        int256 fundingFactorPerSecondShorts; // 30 decimals
     }
 
     IReader private immutable reader;
@@ -106,6 +110,8 @@ contract GMXLens {
         marketDataState.borrowingFactorPerSecondForShorts = marketInfo.borrowingFactorPerSecondForShorts;
         marketDataState.longsPayShorts = marketInfo.nextFunding.longsPayShorts;
         marketDataState.fundingFactorPerSecond = marketInfo.nextFunding.fundingFactorPerSecond;
+        marketDataState.fundingFactorPerSecondLongs = getNextFundingFactorPerSecond(marketProps,true,divisor);
+        marketDataState.fundingFactorPerSecondShorts = getNextFundingFactorPerSecond(marketProps,false,divisor);
   
     }
 
@@ -201,7 +207,7 @@ contract GMXLens {
             // this also works for e.g. a SOL / USD market with long collateral token as WETH
             // if the price of SOL increases more than the price of ETH, additional amounts would be
             // automatically reserved
-            uint256 openInterestInTokens = getOpenInterestInTokens(market.marketToken, market.longToken, isLong, divisor);
+            uint256 openInterestInTokens = _getOpenInterestInTokens(market.marketToken, market.longToken, isLong, divisor);
             reservedUsd = openInterestInTokens * prices.indexTokenPrice.max;
         } else {
             // for shorts use the open interest as the reserved USD value
@@ -213,13 +219,35 @@ contract GMXLens {
         return reservedUsd;
     }
 
+    function getNextFundingFactorPerSecond(Market.Props memory market,
+        bool isLong,
+        uint256 divisor
+    ) internal view returns (int256 nextSavedFundingFactorPerSecond) {
+        uint256 longOpenInterest;
+        uint256 shortOpenInterest;
+        if (isLong) {
+            longOpenInterest = _getOpenInterest(market.marketToken,market.longToken,true,divisor);
+            shortOpenInterest = _getOpenInterest(market.marketToken,market.longToken,false,divisor);
+        } else {
+            longOpenInterest = _getOpenInterest(market.marketToken,market.shortToken,true,divisor);
+            shortOpenInterest = _getOpenInterest(market.marketToken,market.shortToken,false,divisor);
+        }
+
+        if (longOpenInterest == 0 || shortOpenInterest == 0) {
+            return 0;
+        }
+
+        nextSavedFundingFactorPerSecond = _getNextFundingFactorPerSecond(market.marketToken,longOpenInterest,shortOpenInterest);
+    }
+
+
     /** @dev the long and short open interest in tokens for a market based on the collateral token used
         @param market the market to check
         @param collateralToken the collateral token to check
         @param divisor divisor for market
         @param isLong whether to check the long or short side
     */
-    function getOpenInterestInTokens(
+    function _getOpenInterestInTokens(
         address market,
         address collateralToken,
         bool isLong,
@@ -228,11 +256,7 @@ contract GMXLens {
         return IDataStore(dataStore).getUint(Keys.openInterestInTokensKey(market, collateralToken, isLong)) / divisor;
     }
 
-    function getNextFundingFactorPerSecond(
-        address market,
-        uint256 longOpenInterest,
-        uint256 shortOpenInterest
-    ) internal view returns (int256 nextSavedFundingFactorPerSecond) {
+    function _getNextFundingFactorPerSecond(address market,uint256 longOpenInterest,uint256 shortOpenInterest) internal view returns (int256 nextSavedFundingFactorPerSecond) {
         uint256 diffUsd = Calc.diff(longOpenInterest, shortOpenInterest);
         uint256 totalOpenInterest = longOpenInterest + shortOpenInterest;
 
@@ -240,18 +264,92 @@ contract GMXLens {
         uint256 diffUsdAfterExponent = Precision.applyExponentFactor(diffUsd,fundingExponentFactor);
         uint256 diffUsdToOpenInterestFactor = Precision.toFactor(diffUsdAfterExponent, totalOpenInterest);
 
-        uint256 fundingIncreaseFactorPerSecond = IDataStore(dataStore).getUint(Keys.fundingIncreaseFactorPerSecondKey(market));
+        nextSavedFundingFactorPerSecond = _getNextSavedFundingFactorPerSecond(market, longOpenInterest, shortOpenInterest, diffUsdToOpenInterestFactor);
 
-        int256 savedFundingFactorPerSecond = getSavedFundingFactorPerSecond(market);
+        uint256 maxFundingFactorPerSecond = IDataStore(dataStore).getUint(Keys.maxFundingFactorPerSecondKey(market));
 
-        
+        nextSavedFundingFactorPerSecond = Calc.boundMagnitude(
+            nextSavedFundingFactorPerSecond,
+            0,
+            maxFundingFactorPerSecond
+        );
     }
 
-    // @dev get the saved funding factor for a market
-    // @param dataStore DataStore
-    // @param market the market to check
-    // @return the saved funding factor for a market
-    function getSavedFundingFactorPerSecond(address market) internal view returns (int256) {
+    function _getFundingIncreaseFactorPerSecond(address market) internal view returns(uint256){
+        return IDataStore(dataStore).getUint(Keys.fundingIncreaseFactorPerSecondKey(market));
+    }
+
+    function _savedFundingFactorPerSecondKey(address market) internal view returns (int256){
         return IDataStore(dataStore).getInt(Keys.savedFundingFactorPerSecondKey(market));
     }
+
+    function _thresholdForStableFundingKey(address market) internal view returns(uint256){
+        return uint(IDataStore(dataStore).getInt(Keys.thresholdForStableFundingKey(market)));
+    }
+
+    function _thresholdForDecreaseFunding(address market) internal view returns (uint256){
+        return uint(IDataStore(dataStore).getInt(Keys.thresholdForDecreaseFundingKey(market)));
+    }
+
+    function _getFundingRateChangeType(bool isSkewTheSameDirectionAsFunding, uint diffUsdToOpenInterestFactor, uint thresholdForStableFunding, uint thresholdForDecreaseFunding ) internal view returns (FundingRateChangeType fundingRateChangeType){
+        if (isSkewTheSameDirectionAsFunding) {
+            if (diffUsdToOpenInterestFactor > thresholdForStableFunding) {
+                fundingRateChangeType = FundingRateChangeType.Increase;
+            } else if (diffUsdToOpenInterestFactor < thresholdForDecreaseFunding) {
+                fundingRateChangeType = FundingRateChangeType.Decrease;
+            }
+        } else {
+            fundingRateChangeType = FundingRateChangeType.Increase;
+        }
+    }
+
+    function _getNextSavedFundingFactorPerSecond(address market,uint256 longOpenInterest,uint256 shortOpenInterest,uint256 diffUsdToOpenInterestFactor ) internal view returns (int256 nextSavedFundingFactorPerSecond){
+        uint256 fundingIncreaseFactorPerSecond = _getFundingIncreaseFactorPerSecond(market);
+        int256 savedFundingFactorPerSecond = _savedFundingFactorPerSecondKey(market);
+        uint256 thresholdForStableFunding = _thresholdForStableFundingKey(market);
+        uint256 thresholdForDecreaseFunding = _thresholdForDecreaseFunding(market);
+        bool isSkewTheSameDirectionAsFunding = (savedFundingFactorPerSecond > 0 && longOpenInterest > shortOpenInterest) || (savedFundingFactorPerSecond < 0 && shortOpenInterest > longOpenInterest);
+        FundingRateChangeType fundingRateChangeType = _getFundingRateChangeType(isSkewTheSameDirectionAsFunding, diffUsdToOpenInterestFactor, thresholdForStableFunding, thresholdForDecreaseFunding);
+        
+        if (fundingRateChangeType == FundingRateChangeType.Increase) {
+            // increase funding rate
+            int256 increaseValue = int256(Precision.applyFactor(diffUsdToOpenInterestFactor, fundingIncreaseFactorPerSecond) * getDurationInSec(market));
+
+            // if there are more longs than shorts, then the savedFundingFactorPerSecond should increase
+            // otherwise the savedFundingFactorPerSecond should increase in the opposite direction / decrease
+            if (longOpenInterest < shortOpenInterest) {
+                increaseValue = -increaseValue;
+            }
+
+            nextSavedFundingFactorPerSecond = savedFundingFactorPerSecond + increaseValue;
+
+        } 
+        
+        if (fundingRateChangeType == FundingRateChangeType.Decrease && savedFundingFactorPerSecond != 0) {
+            uint256 fundingDecreaseFactorPerSecond = IDataStore(dataStore).getUint(Keys.fundingDecreaseFactorPerSecondKey(market));
+            uint256 decreaseValue = fundingDecreaseFactorPerSecond * getDurationInSec(market);
+
+            if (uint256(savedFundingFactorPerSecond) <= decreaseValue) {
+                nextSavedFundingFactorPerSecond = savedFundingFactorPerSecond / savedFundingFactorPerSecond;
+            } else {
+                int256 sign = savedFundingFactorPerSecond / savedFundingFactorPerSecond;
+                nextSavedFundingFactorPerSecond = int256((uint256(savedFundingFactorPerSecond) - decreaseValue)) * sign;
+            }
+        }
+    }
+
+    function getDurationInSec(address market) internal view returns (uint256) {
+        uint256 updatedAt = IDataStore(dataStore).getUint(Keys.fundingUpdatedAtKey(market));
+        if (updatedAt == 0) {
+            return 0;
+        }
+        return block.timestamp - updatedAt;
+    }
+
+    enum FundingRateChangeType {
+        NoChange,
+        Increase,
+        Decrease
+    }
+
 }

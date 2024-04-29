@@ -26,7 +26,7 @@ function setUp() public {
         gmxLens = GMXLens(proxy);
     }
 
-function testGetDataDisplay() public {
+function testGetDataDisplay() public view {
      address marketID = address(0x47c031236e19d024b42f8AE6780E44A573170703);
         GMXLens.MarketDataState memory data = gmxLens.getMarketData(marketID);
         console.log(data.marketToken);
@@ -55,7 +55,7 @@ function testGetDataDisplay() public {
         console.logInt(data.fundingFactorPerSecondShorts);
 }
 
-function testGetDataBTC() public {
+function testGetDataBTC() public view {
         address marketID = address(0x47c031236e19d024b42f8AE6780E44A573170703);
         GMXLens.MarketDataState memory data = gmxLens.getMarketData(marketID);
         console.log("Testing with a fork at block 205805040");

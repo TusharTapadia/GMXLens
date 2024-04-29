@@ -60,7 +60,7 @@ contract GMXLens is UUPSUpgradeable,OwnableUpgradeable{
         __UUPSUpgradeable_init();
     }
 
-    function getMarketData(address marketID) external returns (MarketDataState memory marketDataState) {
+    function getMarketData(address marketID) external view returns (MarketDataState memory marketDataState) {
     // getting market addresses
         Market.Props memory marketProps = reader.getMarket(dataStore, marketID);
 
@@ -68,7 +68,7 @@ contract GMXLens is UUPSUpgradeable,OwnableUpgradeable{
         Price.MarketPrices memory marketPrices = Price.MarketPrices(tokenPrice(marketProps.indexToken),tokenPrice(marketProps.longToken),tokenPrice(marketProps.shortToken));
 
     // getting detailed info of marketTokenPrice and info
-       (int marketTokenPrice, MarketPoolValueInfo.Props memory marketPoolValueInfo )= reader.getMarketTokenPrice(dataStore, marketProps, marketPrices.indexTokenPrice, marketPrices.longTokenPrice, marketPrices.shortTokenPrice, Keys.MAX_PNL_FACTOR_FOR_TRADERS, true);
+       (, MarketPoolValueInfo.Props memory marketPoolValueInfo )= reader.getMarketTokenPrice(dataStore, marketProps, marketPrices.indexTokenPrice, marketPrices.longTokenPrice, marketPrices.shortTokenPrice, Keys.MAX_PNL_FACTOR_FOR_TRADERS, true);
 
     // getting pnl of long and short
         marketDataState.pnlShort = reader.getPnl(dataStore, marketProps, marketPrices.indexTokenPrice, false, true);
@@ -110,7 +110,7 @@ contract GMXLens is UUPSUpgradeable,OwnableUpgradeable{
   
     }
 
-    function tokenPrice(address _token) internal returns(Price.Props memory){
+    function tokenPrice(address _token) internal view returns(Price.Props memory){
         IPriceFeed priceFeed = IPriceFeed(IDataStore(dataStore).getAddress(Keys.priceFeedKey(_token)));
 
         if (address(priceFeed) == address(0)) {
@@ -286,7 +286,7 @@ contract GMXLens is UUPSUpgradeable,OwnableUpgradeable{
         return uint(IDataStore(dataStore).getInt(Keys.thresholdForDecreaseFundingKey(market)));
     }
 
-    function _getFundingRateChangeType(bool isSkewTheSameDirectionAsFunding, uint diffUsdToOpenInterestFactor, uint thresholdForStableFunding, uint thresholdForDecreaseFunding ) internal view returns (FundingRateChangeType fundingRateChangeType){
+    function _getFundingRateChangeType(bool isSkewTheSameDirectionAsFunding, uint diffUsdToOpenInterestFactor, uint thresholdForStableFunding, uint thresholdForDecreaseFunding ) internal pure returns (FundingRateChangeType fundingRateChangeType){
         if (isSkewTheSameDirectionAsFunding) {
             if (diffUsdToOpenInterestFactor > thresholdForStableFunding) {
                 fundingRateChangeType = FundingRateChangeType.Increase;
